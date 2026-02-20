@@ -28,7 +28,6 @@ class WatchOptions:
     job_id: str | None
     function: str | None
     status: list[str] | None
-    last_hours: float
     limit: int
     offset: int
     interval: int
@@ -51,12 +50,6 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=None,
         help="Repeatable status filter (e.g. --status RUNNING --status QUEUED).",
-    )
-    parser.add_argument(
-        "--last-hours",
-        type=float,
-        default=2.0,
-        help="Show jobs created in the last N hours.",
     )
     parser.add_argument("--limit", type=int, default=50)
     parser.add_argument("--offset", type=int, default=0)
@@ -88,7 +81,6 @@ def parse_options() -> WatchOptions:
         job_id=args.job_id,
         function=args.function,
         status=args.status,
-        last_hours=args.last_hours,
         limit=args.limit,
         offset=args.offset,
         interval=max(1, args.interval),

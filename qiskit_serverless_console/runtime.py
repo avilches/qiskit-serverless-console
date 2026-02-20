@@ -47,6 +47,11 @@ class RuntimeState:
         # Track last rediscovery time for active jobs
         self._last_rediscovery_at: float = 0.0
 
+    @property
+    def runtime_service(self) -> QiskitRuntimeService:
+        """Expose runtime service for external use (e.g., stopping jobs)."""
+        return self._runtime_service
+
     def start(self) -> None:
         """Start background runtime refresher."""
         self._thread.start()
