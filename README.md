@@ -27,16 +27,16 @@ qiskit-serverless-jobs-watch
 
 ## Environment Variables
 
-| Name | Mandatory | Description |
-|------|-----------|-------------|
-| `QISKIT_IBM_TOKEN` | Yes | Auth token for Serverless and Runtime |
-| `QISKIT_IBM_INSTANCE` | Yes | IBM Cloud CRN instance |
-| `ENV_GATEWAY_PROVIDER_HOST` | No | Serverless API host. Default: `https://qiskit-serverless.quantum.ibm.com` |
-| `ENV_GATEWAY_PROVIDER_TOKEN` | No | Serverless API token. Falls back to `QISKIT_IBM_TOKEN` |
-| `QISKIT_IBM_URL` | No | Runtime API host. Default: `https://cloud.ibm.com` |
-| `QISKIT_IBM_CHANNEL` | No | Runtime channel. Default: `ibm_quantum_platform` |
+| Name                         | Mandatory | Description                                                               |
+|------------------------------|-----------|---------------------------------------------------------------------------|
+| `QISKIT_IBM_TOKEN`           | Yes       | IBM Cloud Api token                                                       |
+| `QISKIT_IBM_INSTANCE`        | Yes       | IBM Cloud CRN instance                                                    |
+| `ENV_GATEWAY_PROVIDER_HOST`  | -         | Serverless API host. Default: `https://qiskit-serverless.quantum.ibm.com` |
+| `ENV_GATEWAY_PROVIDER_TOKEN` | -         | Serverless API token. Falls back to `QISKIT_IBM_TOKEN`                    |
+| `QISKIT_IBM_URL`             | -         | Runtime API host. Default: `https://cloud.ibm.com`                        |
+| `QISKIT_IBM_CHANNEL`         | -         | Runtime channel. Default: `ibm_quantum_platform`                          |
 
-## Staging
+## Stagingx
 
 For staging, set:
 - `QISKIT_IBM_URL=https://test.cloud.ibm.com`
