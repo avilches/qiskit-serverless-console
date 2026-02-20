@@ -135,7 +135,7 @@ def _run_json_watch(options: WatchOptions) -> int:
 
 def run_watch(options: WatchOptions) -> int:
     """Run watch loop until interrupted."""
-    _print_startup_env()
+    # _print_startup_env()
     _suppress_noisy_qiskit_logs()
     if options.json_mode:
         return _run_json_watch(options)
