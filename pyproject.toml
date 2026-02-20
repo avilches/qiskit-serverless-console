@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=80.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qiskit-serverless-console"
+version = "0.1.0"
+description = "Console watcher for Qiskit Serverless and Qiskit Runtime jobs."
+requires-python = ">=3.9"
+dependencies = [
+    "qiskit-serverless",
+    "qiskit-ibm-runtime>=0.40.1,<0.46.0",
+    "rich>=13.7.0,<14.0.0",
+    "textual>=0.89.1,<1.0.0",
+]
+
+[project.scripts]
+qiskit-serverless-jobs-watch = "qiskit_serverless_console.cli:main"
+
+[tool.setuptools]
+packages = {find = {}}

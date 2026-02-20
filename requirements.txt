@@ -1,0 +1,4 @@
+qiskit-serverless
+qiskit-ibm-runtime>=0.40.1,<0.46.0
+rich>=13.7.0,<14.0.0
+textual>=0.89.1,<1.0.0
