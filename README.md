@@ -1,21 +1,18 @@
-nubb# qiskit-serverless-console
-
-```
-+------------------------------------------------------------------------------+
-| qiskit-serverless-jobs-watch                                                 |
-|                                                                              |
-|  refresh: 1s   mode: table/json   runtime: background poller               |
-|  tree: rich Tree (serverless job -> runtime jobs)                           |
-|  missing fields: rich Spinner placeholders                                  |
-+------------------------------------------------------------------------------+
-```
+# qiskit-serverless-console
 
 Standalone console project to watch Qiskit Serverless jobs and related Qiskit Runtime jobs.
+
+Features:
+- Show status in realtime (polling data every 1sec)
+- Show runtime jobs as children
+- Press L to see the logs
+- Press S to stop a job (with confirmation modal)
+
+![Screenshot](screenshot-1.png)
 
 ## Install
 
 ```bash
-cd qiskit-serverless-console
 pip install -r requirements.txt
 pip install -e .
 ```
@@ -29,16 +26,16 @@ This installs:
 The CLI reads auth and endpoints from environment variables (no auth/url flags).
 
 Serverless + Runtime shared auth:
-- `QISKIT_IBM_TOKEN` (required)
-- `QISKIT_IBM_INSTANCE` (required)
+- `QISKIT_IBM_TOKEN` Required. Token.
+- `QISKIT_IBM_INSTANCE` Required. IBM Cloud CRN instance.
 
-Serverless host:
-- `ENV_GATEWAY_PROVIDER_HOST` (optional)
-- Default when missing: `https://qiskit-serverless.quantum.ibm.com`
+Serverless connection:
+- `ENV_GATEWAY_PROVIDER_HOST` Optional. Default: `https://qiskit-serverless.quantum.ibm.com`
+- `ENV_GATEWAY_PROVIDER_TOKEN` Optional. Token for Serverless API. Falls back to `QISKIT_IBM_TOKEN` if not set.
 
 Runtime connection:
-- `QISKIT_IBM_URL` (optional, default: `https://cloud.ibm.com`)
-- `QISKIT_IBM_CHANNEL` (optional, default: `ibm_quantum_platform`)
+- `QISKIT_IBM_URL` Optional, Default: `https://cloud.ibm.com`)
+- `QISKIT_IBM_CHANNEL` Optional. Default: `ibm_quantum_platform`)
 
 ## Staging
 

@@ -10,6 +10,7 @@ from qiskit_ibm_runtime import QiskitRuntimeService
 from qiskit_serverless import ServerlessClient
 
 ENV_GATEWAY_PROVIDER_HOST = "ENV_GATEWAY_PROVIDER_HOST"
+ENV_GATEWAY_PROVIDER_TOKEN = "ENV_GATEWAY_PROVIDER_TOKEN"
 ENV_QISKIT_IBM_INSTANCE = "QISKIT_IBM_INSTANCE"
 ENV_QISKIT_IBM_TOKEN = "QISKIT_IBM_TOKEN"
 ENV_QISKIT_IBM_URL = "QISKIT_IBM_URL"
@@ -101,10 +102,11 @@ def build_clients() -> tuple[ServerlessClient, QiskitRuntimeService]:
     instance = os.getenv(ENV_QISKIT_IBM_INSTANCE)
     ibm_token = os.getenv(ENV_QISKIT_IBM_TOKEN)
     gateway_host = os.getenv(ENV_GATEWAY_PROVIDER_HOST, DEFAULT_GATEWAY_HOST)
+    gateway_token = os.getenv(ENV_GATEWAY_PROVIDER_TOKEN, ibm_token)
 
     serverless_client = ServerlessClient(
         host=gateway_host,
-        token=ibm_token,
+        token=gateway_token,
         instance=instance,
         channel=DEFAULT_CHANNEL,
     )

@@ -11,8 +11,8 @@ from rich.table import Table
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.screen import ModalScreen
-from textual.widgets import Footer, Header, Static, Tree
-from textual.containers import VerticalScroll
+from textual.widgets import Button, Footer, Header, Static, Tree
+from textual.containers import Horizontal, Vertical, VerticalScroll
 
 from .config import WatchOptions, build_clients
 from .fetch import fetch_serverless_rows
@@ -125,6 +125,138 @@ class LogsScreen(ModalScreen[None]):
         return True
 
 
+class StopConfirmScreen(ModalScreen[None]):
+    """Modal screen to confirm stopping a job."""
+
+    BINDINGS = [
+        ("escape", "cancel", "Esc Cancel"),
+    ]
+
+    CSS = """
+    StopConfirmScreen {
+        align: center middle;
+    }
+    #stop-container {
+        width: 60;
+        height: auto;
+        border: solid yellow;
+        background: $surface;
+        padding: 1 2;
+    }
+    #stop-message {
+        width: 100%;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    #stop-buttons {
+        width: 100%;
+        height: 3;
+        align: center middle;
+    }
+    #stop-buttons Button {
+        margin: 0 1;
+    }
+    """
+
+    def __init__(self, job_id: str, serverless_client: Any) -> None:
+        super().__init__()
+        self._job_id = job_id
+        self._client = serverless_client
+        self._confirming = True
+        self._stopping = False
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="stop-container"):
+            yield Static(
+                f"[bold]Stop job?[/bold]\n\n[bright_white]{self._job_id}[/bright_white]",
+                id="stop-message",
+                markup=True,
+            )
+            with Horizontal(id="stop-buttons"):
+                yield Button("Ok", variant="primary", id="ok-btn")
+                yield Button("Esc=Cancel", variant="default", id="cancel-btn")
+
+    def on_mount(self) -> None:
+        """Focus the Ok button by default."""
+        self.query_one("#ok-btn", Button).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button presses."""
+        if event.button.id == "ok-btn" and self._confirming:
+            self._start_stop()
+        elif event.button.id in ("cancel-btn", "close-btn"):
+            self.dismiss()
+
+    def action_cancel(self) -> None:
+        """Handle escape key."""
+        if self._confirming:
+            self.dismiss()
+
+    def _start_stop(self) -> None:
+        """Start the stop operation."""
+        self._confirming = False
+        self._stopping = True
+        message = self.query_one("#stop-message", Static)
+        spinner_char = _SPINNER_FRAMES[0]
+        message.update(
+            f"[bold]{spinner_char} Stopping job...[/bold]\n\n"
+            f"[bright_white]{self._job_id}[/bright_white]"
+        )
+        self.query_one("#ok-btn", Button).disabled = True
+        self.query_one("#cancel-btn", Button).disabled = True
+        self.set_interval(0.1, self._update_stopping)
+        thread = threading.Thread(target=self._perform_stop, daemon=True)
+        thread.start()
+
+    def _update_stopping(self) -> None:
+        """Update spinner during stop operation."""
+        if not self._stopping:
+            return
+        message = self.query_one("#stop-message", Static)
+        spinner_char = _SPINNER_FRAMES[int(time.monotonic() * 10) % len(_SPINNER_FRAMES)]
+        message.update(
+            f"[bold]{spinner_char} Stopping job...[/bold]\n\n"
+            f"[bright_white]{self._job_id}[/bright_white]"
+        )
+
+    def _perform_stop(self) -> None:
+        """Perform the stop operation in background thread."""
+        try:
+            job = self._client.job(self._job_id)
+            job.stop()
+            self.call_from_thread(self._set_result, True, None)
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            self.call_from_thread(self._set_result, False, str(error))
+
+    def _set_result(self, success: bool, error: str | None) -> None:
+        """Update screen with stop result."""
+        self._stopping = False
+        message = self.query_one("#stop-message", Static)
+        if success:
+            message.update(
+                f"[bold green]Job stopped[/bold green]\n\n"
+                f"[bright_white]{self._job_id}[/bright_white]"
+            )
+        else:
+            message.update(
+                f"[bold red]Failed to stop job[/bold red]\n\n"
+                f"[bright_white]{self._job_id}[/bright_white]\n\n"
+                f"{error or 'Unknown error'}"
+            )
+        buttons = self.query_one("#stop-buttons", Horizontal)
+        for child in list(buttons.children):
+            child.remove()
+        close_btn = Button("Close", variant="primary", id="close-btn")
+        buttons.mount(close_btn)
+        close_btn.focus()
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Block cancel while stopping."""
+        if action == "cancel" and self._stopping:
+            return False
+        return True
+
+
 class JobsTreeApp(App[int]):
     """Keyboard-driven tree UI for serverless/runtime jobs."""
 
@@ -148,6 +280,7 @@ class JobsTreeApp(App[int]):
         ("down", "tree_cursor_down", "↓ Move down"),
         ("enter", "toggle_selected", "Enter Expand/Collapse"),
         ("l", "show_logs", "L Logs"),
+        ("s", "stop_job", "S Stop"),
         ("q", "quit", "Q Quit"),
     ]
 
@@ -239,6 +372,28 @@ class JobsTreeApp(App[int]):
         except Exception as error:  # pylint: disable=broad-exception-caught
             logs = f"Error fetching logs: {error}"
         self.call_from_thread(logs_screen.set_logs, logs)
+
+    def action_stop_job(self) -> None:
+        """Show confirmation to stop the selected serverless job."""
+        tree = self.query_one("#jobs", Tree)
+        node = tree.cursor_node
+        if node is None:
+            return
+        data = node.data or {}
+        # Only allow stopping serverless jobs (not runtime jobs)
+        if data.get("type") != "job":
+            return
+        job_id = data.get("job_id")
+        if not job_id:
+            return
+        if self._serverless_client is None:
+            return
+        # Don't allow stopping terminal jobs
+        if self._job_terminal_status.get(job_id, False):
+            return
+        # Show confirmation modal
+        stop_screen = StopConfirmScreen(job_id, self._serverless_client)
+        self.push_screen(stop_screen)
 
     def _tick(self) -> None:
         self._spinner_frame = (self._spinner_frame + 1) % len(_SPINNER_FRAMES)
