@@ -281,6 +281,30 @@ class JobsTreeApp(App[int]):
     #jobs {
         height: 1fr;
     }
+    #pause-overlay {
+        display: none;
+    }
+    #pause-overlay.visible {
+        display: block;
+        layer: overlay;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        align: center middle;
+    }
+    #pause-box {
+        width: 30;
+        height: 3;
+        border: solid yellow;
+        background: $surface;
+        content-align: center middle;
+    }
+    .paused #jobs {
+        opacity: 0.4;
+    }
+    .paused #status {
+        opacity: 0.4;
+    }
     """
 
     BINDINGS = [
@@ -289,6 +313,8 @@ class JobsTreeApp(App[int]):
         ("enter", "toggle_selected", "Enter Expand/Collapse"),
         ("l", "show_logs", "L Logs"),
         ("s", "stop_job", "S Stop"),
+        ("p", "toggle_pause", "P Pause"),
+        ("space", "resume", ""),
         ("q", "quit", "Q Quit"),
     ]
 
@@ -299,6 +325,36 @@ class JobsTreeApp(App[int]):
     def action_tree_cursor_down(self) -> None:
         tree = self.query_one("#jobs", Tree)
         tree.action_cursor_down()
+
+    def action_toggle_pause(self) -> None:
+        """Toggle pause state."""
+        if self._paused:
+            self._resume()
+        else:
+            self._pause()
+
+    def action_resume(self) -> None:
+        """Resume from pause (Space key)."""
+        if self._paused:
+            self._resume()
+
+    def _pause(self) -> None:
+        """Enter paused state."""
+        self._paused = True
+        self.add_class("paused")
+        overlay = self.query_one("#pause-overlay", Vertical)
+        overlay.add_class("visible")
+
+    def _resume(self) -> None:
+        """Exit paused state."""
+        self._paused = False
+        self._last_change_time = time.monotonic()  # Reset auto-pause timer
+        self.remove_class("paused")
+        overlay = self.query_one("#pause-overlay", Vertical)
+        overlay.remove_class("visible")
+
+    # Auto-pause after 10 minutes of no changes
+    AUTO_PAUSE_SECONDS = 10 * 60
 
     def __init__(self, options: WatchOptions) -> None:
         super().__init__()
@@ -317,11 +373,21 @@ class JobsTreeApp(App[int]):
         self._serverless_client: Any | None = None
         self._runtime_state: RuntimeState | None = None
         self._spinner_frame = 0  # For animating tree label spinners
+        self._paused = False
+        self._last_change_time = time.monotonic()  # Track last change for auto-pause
+        self._previous_job_ids: set[str] = set()  # For detecting new jobs
+        self._previous_statuses: dict[str, str] = {}  # For detecting status changes
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Static("", id="status")
         yield Tree("Serverless jobs", id="jobs")
+        with Vertical(id="pause-overlay"):
+            yield Static(
+                "[bold yellow]PAUSED.[/bold yellow] Press [bold]P[/bold] to resume",
+                id="pause-box",
+                markup=True,
+            )
         yield Footer()
 
     def on_mount(self) -> None:
@@ -422,16 +488,62 @@ class JobsTreeApp(App[int]):
             self.push_screen(stop_screen)
 
     def _tick(self) -> None:
+        # Check for auto-pause (only if not already paused and not first fetch)
+        if (
+            not self._paused
+            and not self._first_fetch
+            and time.monotonic() - self._last_change_time > self.AUTO_PAUSE_SECONDS
+        ):
+            self._pause()
+            return
+
+        # Skip refresh when paused
+        if self._paused:
+            return
+
         self._spinner_frame = (self._spinner_frame + 1) % len(_SPINNER_FRAMES)
         if self._runtime_state is not None:
             self._runtime_state.attach_runtime_rows(self._rows)
         self._kick_fetch_if_due()
+        self._detect_changes()
         self._render_status()
         self._render_tree()
         # Force tree refresh to ensure new nodes are visible
         tree_query = self.query("#jobs")
         if tree_query:
             tree_query.first(Tree).refresh()
+
+    def _detect_changes(self) -> None:
+        """Detect any changes to reset the auto-pause timer."""
+        current_job_ids = {
+            _field_or_blank(row.get("job_id")) or "(unknown)" for row in self._rows
+        }
+        current_statuses: dict[str, str] = {}
+        for row in self._rows:
+            job_id = _field_or_blank(row.get("job_id")) or "(unknown)"
+            status = _field_or_blank(row.get("status"))
+            sub_status = _field_or_blank(row.get("sub_status"))
+            current_statuses[job_id] = f"{status}/{sub_status}"
+            # Also check runtime job statuses
+            for rt in row.get("runtime_jobs", []) or []:
+                rt_id = _field_or_blank(rt.get("runtime_job_id")) or "(unknown)"
+                rt_status = _field_or_blank(rt.get("status"))
+                current_statuses[rt_id] = rt_status
+
+        changed = False
+
+        # Check for new jobs
+        if current_job_ids != self._previous_job_ids:
+            changed = True
+            self._previous_job_ids = current_job_ids
+
+        # Check for status changes
+        if current_statuses != self._previous_statuses:
+            changed = True
+            self._previous_statuses = current_statuses
+
+        if changed:
+            self._last_change_time = time.monotonic()
 
     def _kick_fetch_if_due(self) -> None:
         if self._fetch_inflight:
